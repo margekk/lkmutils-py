@@ -1,5 +1,6 @@
 from PIL import Image, ImageDraw
 import os
+import legendrian_mosaic
 
 def main():
     print("Please enter the rows of the knot mosaic, one row per line.")
@@ -29,12 +30,14 @@ def main():
             print("Invalid input. Please enter a row of integers.")
             continue
     
-    print("Parsed mosaic:", matrix)
-
+    mosaic = legendrian_mosaic.Mosaic(matrix)
+    
+    mosaic.display()
+    
     save_confirmation = input("Save to file as .png? (yes/no): ").strip().lower()
     if save_confirmation in ["yes", "y"]:
         save_name = input("Enter file name: ").strip()
-        create_knot_mosaic(matrix, save_name)
+        mosaic.to_png(save_name)
 
 def create_knot_mosaic(matrix, output_filename):
     tile_size = 115
