@@ -5,8 +5,6 @@ import os
 class Mosaic:
 
     def __init__(self, input_matrix):
-        # [Mosaic.Tile(num) for num in row in input_matrix] 
-        # This feels hacky, the above works but doesn't allow us to keep track of position as easily
         self.size = len(input_matrix)
         self.matrix = input_matrix
         for i in range(self.size):
@@ -16,25 +14,28 @@ class Mosaic:
         self.down_cusps = 0
         self.pos_crossings = 0
         self.neg_crossings = 0
-        self.connected = self.trace()
-        self.satisfied = True
+        self.crossing_list = []
+        self.crossing_count = 0
+        self.trace()
+        self.dowker = [sublist[1] for sublist in sorted(self.crossing_list, key = lambda x: int(x[2]))]
+        self.satisfied = self.satisfaction_check()
+    
+    def satisfaction_check(self):
         for row in self.matrix:
             for tile in row:
                 if not tile.satisfied:
-                    print(f"not satisfied: {tile.num}")
-                    self.satisfied = False
-                    break
-                else:
-                    continue
-            break
-        
+                    return False
+        return True
+
     def display(self):
         print(f"Size: {self.size}")
-        print(f"A Knot?: {self.connected and self.satisfied}")
-        if self.connected and self.satisfied:
+        print(f"A Knot?: {self.satisfied}")
+        if self.satisfied:
+            #print(f"Type: {self.knot_type}")
             print(f"Crossings: {self.pos_crossings + self.neg_crossings}")
             print(f"Cusps: {self.down_cusps + self.up_cusps}")
-            print(f"Thurston-Bennquin Number: {self.tb()}")
+            print(f"Thurston-Bennequin Number: {self.tb()}")
+            print(f"Dowker-Thistlethwaite Notation: {self.dowker}")
             print(f"Rotation Number: {self.rot()}")
         
         
@@ -44,28 +45,20 @@ class Mosaic:
                 if (tile.num != 0):
                     self.starting_tile = tile
                     break
-                else:
-                    continue
+            else:
+                continue
             break
-        try:
-            for i in range(4):
-                for conn in self.starting_tile.valid_connections:
-                    if conn[0] == i:
-                        #Debug:
-                        #print("starting trace")
-                        self.trace_through(self.starting_tile,i)
-                        break
-                    else:
-                        continue
-                break
-        except: 
-            return False
-
-        return True
+        for i in range(4):
+            for conn in self.starting_tile.valid_connections:
+                if conn[0] == i:
+                    #Debug:
+                    print("starting trace")
+                    self.trace_through(self.starting_tile,i)
+                    return
 
     def trace_through(self, tile, in_face):
         #Debug:
-        #print(f"trace tile: {tile.num}")
+        print(f"trace tile: {tile.num}")
         # Recursion stops when we return to the starting tile
         if (tile == self.starting_tile and tile.satisfied):
             return
@@ -80,10 +73,21 @@ class Mosaic:
                     #print(f"{tile.num} satisfied")
                 if conn in [(0,3),(1,2)]:
                     self.down_cusps += 1
-                if (conn == (3,0) or conn == (1,2)):    
+                if conn in [(3,0),(2,1)]:    
                     self.up_cusps += 1
-                if (tile.satisfied and tile.num == 10):
-                    # Match doesn't work with sets, so this is a bit clunky
+                #Dealing with crossings
+                if tile.num == 10:
+                    self.crossing_count += 1
+                    if tile.satisfied:
+                        for pair in self.crossing_list:
+                            if pair[0] == tile:
+                                if self.crossing_count % 2 == 0:
+                                    if conn in [(1,3),(3,1)]:
+                                        pair[1] = -1*self.crossing_count
+                                    else:
+                                        pair[1] = self.crossing_count
+                                else:
+                                    pair[2] = self.crossing_count
                         if tile.made_connections == {(0,2), (1,3)}:
                             self.neg_crossings += 1
                         elif tile.made_connections == {(0,2), (3,1)}:
@@ -92,24 +96,29 @@ class Mosaic:
                             self.pos_crossings += 1
                         elif tile.made_connections == {(2,0), (3,1)}:
                             self.neg_crossings += 1
-                        else :
-                            print(f"set equality doesn't work for crossings")
+                    else: 
+                        if self.crossing_count % 2 == 0:
+                            if conn in [(1,3),(3,1)]: 
+                                self.crossing_list.append([tile, -1*self.crossing_count, 0])
+                            else:
+                                self.crossing_list.append([tile, self.crossing_count, 0])
+                        else:
+                            self.crossing_list.append([tile, 0, self.crossing_count])
                 
                 out_face = conn[1]
                 match out_face:
                     case 0:
-                        self.trace_through(self.matrix[tile.row][tile.col+1], (out_face + 2) % 4)
+                        if(tile.col + 1 < self.size):
+                            self.trace_through(self.matrix[tile.row][tile.col+1], (out_face + 2) % 4)
                     case 1:
-                        self.trace_through(self.matrix[tile.row-1][tile.col], (out_face + 2) % 4)
+                        if(tile.row - 1 >= 0):
+                            self.trace_through(self.matrix[tile.row-1][tile.col], (out_face + 2) % 4)
                     case 2:
-                        self.trace_through(self.matrix[tile.row][tile.col-1], (out_face + 2) % 4)
+                        if(tile.col - 1 >= 0):
+                            self.trace_through(self.matrix[tile.row][tile.col-1], (out_face + 2) % 4)
                     case 3:
-                        self.trace_through(self.matrix[tile.row+1][tile.col], (out_face + 2) % 4)
-                return
-
-        # Raises an exception if there are no valid connections.
-        raise Exception("Not connected.")
-
+                        if(tile.row + 1 < self.size):
+                            self.trace_through(self.matrix[tile.row+1][tile.col], (out_face + 2) % 4)
 
     def tb(self):
         return (self.pos_crossings - self.neg_crossings) - ((self.down_cusps + self.up_cusps) // 2)
@@ -178,4 +187,3 @@ class Tile:
                 self.valid_connections = {(0, 3), (3, 0), (1, 2), (2, 1)}
             case 10: # Crossing
                 self.valid_connections = {(0, 2), (2, 0), (1, 3), (3, 1)}
-
